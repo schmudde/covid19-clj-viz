@@ -19,45 +19,10 @@
          (repeat hdr)
          (rest rows))))
 
-;; Or, we could use Nils Grunwald's `meta-csv`, which does the
-;; automatic parsing that we often want.
-
-;; First, an Italian-to-English translation mapping for header names.
-(def fields-it->en
-  {;; For provinces (and some for regions too)
-   "data"                    :date
-   "stato"                   :state
-   "codice_regione"          :region-code
-   "denominazione_regione"   :region-name
-   "codice_provincia"        :province-code
-   "denominazione_provincia" :province-name
-   "sigla_provincia"         :province-abbreviation
-   "lat"                     :lat
-   "long"                    :lon
-   "totale_casi"             :cases
-   ;; For regions
-   "ricoverati_con_sintomi"      :hospitalized
-   "terapia_intensiva"           :icu
-   "totale_ospedalizzati"        :tot-hospitalized
-   "isolamento_domiciliare"      :quarantined
-   "totale_attualmente_positivi" :tot-positives
-   "nuovi_attualmente_positivi"  :new-positives
-   "dimessi_guariti"             :recovered
-   "deceduti"                    :dead
-   "tamponi"                     :tests})
-
-;; Now we can just read the CSV.
-(def provinces2
-  (mcsv/read-csv "resources/Italia-COVID-19/dati-province/dpc-covid19-ita-province-latest.csv"
-                 {:field-names-fn fields-it->en}))
-
 (comment
   ;;;; Let's examine the data.
   ;; Instead of `pt/names`:
   (keys (first provinces))
-
-  (keys (first provinces2))
-
 
   ;;;; I often use an alternative approach when reading CSVs,
   ;;;; transforming rather than replacing the header:
@@ -127,6 +92,84 @@
 
   )
 
+
+
+#_[ "Massa Carrara"
+ {:province-abbreviation "MS",
+  :date "2020-03-23 17:00:00",
+  :province-code 45,
+  :region-name "Toscana",
+  :state "ITA",
+  :province-name "Massa Carrara",
+  :population 196580,
+  :lon 10.14173829,
+  :lat 44.03674425,
+  :cases 289,
+  :cases-per-100k 147.0139383457117,
+  :region-code 9}
+
+ "Aosta"
+ {:province-abbreviation "AO",
+  :date "2020-03-23 17:00:00",
+  :province-code 7,
+  :region-name "Valle d'Aosta",
+  :state "ITA",
+  :province-name "Aosta",
+  :population 126883,
+  :lon 7.320149366,
+  :lat 45.73750286,
+  :cases 393,
+  :cases-per-100k 309.7341645452898,
+  :region-code 2},
+ "Bolzano"
+ {:province-abbreviation "BZ",
+  :date "2020-03-23 17:00:00",
+  :province-code 21,
+  :region-name "P.A. Bolzano",
+  :state "ITA",
+  :province-name "Bolzano",
+  :population 524256,
+  :lon 11.35662422,
+  :lat 46.49933453,
+  :cases 724,
+  :cases-per-100k 138.1004699993896,
+  :region-code 4}]
+
+;;;;;;;;;;;;;;;;;;;;
+;; Conform Functions
+
+;; First, an Italian-to-English translation mapping for header names.
+(def fields-it->en
+  {;; For provinces (and some for regions too)
+   "data"                    :date
+   "stato"                   :state
+   "codice_regione"          :region-code
+   "denominazione_regione"   :region-name
+   "codice_provincia"        :province-code
+   "denominazione_provincia" :province-name
+   "sigla_provincia"         :province-abbreviation
+   "lat"                     :lat
+   "long"                    :lon
+   "totale_casi"             :cases
+   ;; For regions
+   "ricoverati_con_sintomi"      :hospitalized
+   "terapia_intensiva"           :icu
+   "totale_ospedalizzati"        :tot-hospitalized
+   "isolamento_domiciliare"      :quarantined
+   "totale_attualmente_positivi" :tot-positives
+   "nuovi_attualmente_positivi"  :new-positives
+   "dimessi_guariti"             :recovered
+   "deceduti"                    :dead
+   "tamponi"                     :tests})
+
+(defn normalize-province-names
+  "These region names a different on the population data files, geo.json files, and the covid-19 files."
+  [province]
+  (get
+   {"Aosta" "Valle d'Aosta/Vallée d'Aoste"
+    "Massa Carrara" "Massa-Carrara"
+    "Bolzano" "Bolzano/Bozen"} province))
+
 (defn normalize-region-names
   "These region names a different on the population data files, geo.json files, and the covid-19 files."
   [region]
@@ -136,7 +179,7 @@
     "Valle d'Aosta" "Valle d'Aosta/Vallée d'Aoste"} region))
 
 (defn normalize-trentino
-  "The COVID numbers from Italy split one region into two. 'P.A. Bolzano' and 'P.A. Trento' should be combined into 'Trentino-Alto Adige/Südtirol.'"
+  "REGION: The COVID numbers from Italy split one region into two. 'P.A. Bolzano' and 'P.A. Trento' should be combined into 'Trentino-Alto Adige/Südtirol.'"
   [region-covid-data]
   (let [keys-to-sum [:hospitalized :icu :tot-hospitalized :quarantined :tot-positives :new-positives :recovered :dead :cases :tests]
         regions-to-combine (filter #(or (= "P.A. Bolzano" (:region-name %)) (= "P.A. Trento" (:region-name %))) region-covid-data)
@@ -149,15 +192,6 @@
          (remove-inexact-data)
          (conj region-covid-data))))
 
-(def region-covid-data
-  (->> (mcsv/read-csv "resources/Italia-COVID-19/dati-regioni/dpc-covid19-ita-regioni-latest.csv"
-                      {:field-names-fn fields-it->en})
-       (map #(update % :region-name (fn [region-name]
-                                      (if-let [update-region-name (normalize-region-names region-name)]
-                                        update-region-name
-                                        region-name))))
-       (normalize-trentino)))
-
 (defn conform-to-territory-name
   "Index each map of territory information by territory name."
   [territories territory-key]
@@ -169,15 +203,39 @@
               population (% :population)
               calc-cases (fn [x] (double (/ cases x)))
               per-100k (fn [x] (/ x 100000))]
-          (->> (if population ((comp calc-cases per-100k) population) 0) ;; TODO: change from nil
+          (->> (if population ((comp calc-cases per-100k) population) nil) ;; TODO: change from nil
                (assoc % :cases-per-100k))) province-data-with-pop))
+
+;;;;;;;;;;;;;
+;; COVID data
+
+;; Now we can just read the CSV.
+(def province-covid-data
+  (->> (mcsv/read-csv "resources/Italia-COVID-19/dati-province/dpc-covid19-ita-province-latest.csv"
+                      {:field-names-fn fields-it->en})
+       (map #(update % :province-name (fn [territory-name]
+                                        (if-let [update-territory-name (normalize-province-names territory-name)]
+                                          update-territory-name
+                                          territory-name))))))
+
+(def region-covid-data
+  (->> (mcsv/read-csv "resources/Italia-COVID-19/dati-regioni/dpc-covid19-ita-regioni-latest.csv"
+                      {:field-names-fn fields-it->en})
+       (map #(update % :region-name (fn [region-name]
+                                      (if-let [update-region-name (normalize-region-names region-name)]
+                                        update-region-name
+                                        region-name))))
+       (normalize-trentino)))
+
+;;;;;;;;;;;;;;;;;;
+;; Population Data
 
 (def region-population-data
   "From http://www.comuni-italiani.it/province.html with updates to Trentino-Alto Adige/Südtirol and Valle d'Aosta/Vallée d'Aoste."
   (-> (mcsv/read-csv "resources/italy.region-population.csv" {:fields [:region-name :population :number-of-provinces]})
       (conform-to-territory-name :region-name)))
 
-(def province-populations
+(def province-population-data
   "From http://www.comuni-italiani.it/province.html. Italy changed how provinces are structured in Sardina in 2016.
    Some are manually updated using the data here: https://en.wikipedia.org/wiki/Provinces_of_Italy"
   (-> (mcsv/read-csv "resources/italy.province-population.csv" {:fields [:province-name :population :abbreviation]})
@@ -189,6 +247,9 @@
                (:population)
                (assoc % :population))) all-territory-data))
 
+;;;;;;;;;;;;;
+;; Final Data
+
 (def region-data "For use with resources/public/public/data/limits_IT_regions-original.geo.json"
   (-> (add-population-to-territories region-covid-data region-population-data :region-name)
       (compute-cases-per-100k)
@@ -196,7 +257,7 @@
 
 (def province-data
   "For use with resources/public/public/data/limits_IT_provinces-original.geo.json"
-  (-> (remove (comp #{"In fase di definizione/aggiornamento"} :province-name) provinces2)
-                       (add-population-to-territories province-populations :province-name)
+  (-> (remove (comp #{"In fase di definizione/aggiornamento"} :province-name) province-covid-data)
+                       (add-population-to-territories province-population-data :province-name)
                        (compute-cases-per-100k)
                        (conform-to-territory-name :province-name)))

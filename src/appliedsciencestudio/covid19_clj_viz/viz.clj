@@ -109,7 +109,7 @@
 
 (oz/view!
  (merge-with merge oz-config european-state-dimensions
-             {:title {:text "COVID19 cases in Italy, by province, per 100k inhabitants"}
+             {:title {:text "COVID19 cases in Italy, by region, per 100k inhabitants"}
               :data {:name "italy"
                      :values italia-region-geojson-with-data
                      :format {:property "features"}},

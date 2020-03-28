@@ -178,6 +178,7 @@
     "Emilia Romagna" "Emilia-Romagna"
     "Valle d'Aosta" "Valle d'Aosta/Vallée d'Aoste"} region))
 
+;; TODO: This is a nasty, unexpected edge case that would require a refactor to handle correctly
 (defn normalize-trentino
   "REGION: The COVID numbers from Italy split one region into two. 'P.A. Bolzano' and 'P.A. Trento' should be combined into 'Trentino-Alto Adige/Südtirol.'"
   [region-covid-data]
@@ -185,12 +186,12 @@
         regions-to-combine (filter #(or (= "P.A. Bolzano" (:region-name %)) (= "P.A. Trento" (:region-name %))) region-covid-data)
         name-combined-region (fn [combined-regions] (assoc combined-regions :region-name "Trentino-Alto Adige/Südtirol"))
         remove-inexact-data (fn [combined-regions] (dissoc combined-regions :lat :lon))]
-    (->> (map #(select-keys % keys-to-sum) regions-to-combine)
-         (reduce #(merge-with + %1 %2))
-         (conj (first regions-to-combine))
-         (name-combined-region)
-         (remove-inexact-data)
-         (conj region-covid-data))))
+    (->> (map #(select-keys % keys-to-sum) regions-to-combine) ; grab the important keys from the regions we want to combine
+         (reduce #(merge-with + %1 %2))                        ; add the info from each key together
+         (conj (first regions-to-combine))                     ; add in the rest of the information (name, region number, etc...)
+         (name-combined-region)                                ; name the combined region
+         (remove-inexact-data)                                 ; cleanup: remove longitude and latitude because it no longer applies
+         (conj region-covid-data))))                           ; add this back into the main collection
 
 (defn conform-to-territory-name
   "Index each map of territory information by territory name."
@@ -198,12 +199,15 @@
   (->> (map #(vector (territory-key %) %) territories)
        (into {})))
 
-(defn compute-cases-per-100k [province-data-with-pop]
+(defn compute-cases-per-100k
+  "If the data provided includes a valid population number, calculate the number for :cases-per-100k. Else set :cases-per-100k to nil.
+   By retruning a non-number, any calculations or plotting will error or crash rather than work with bad data."
+  [province-data-with-pop]
   (map #(let [cases (% :cases)
               population (% :population)
               calc-cases (fn [x] (double (/ cases x)))
               per-100k (fn [x] (/ x 100000))]
-          (->> (if population ((comp calc-cases per-100k) population) nil) ;; TODO: change from nil
+          (->> (if population ((comp calc-cases per-100k) population) nil)
                (assoc % :cases-per-100k))) province-data-with-pop))
 
 ;;;;;;;;;;;;;
@@ -253,7 +257,8 @@
 (def region-data "For use with resources/public/public/data/limits_IT_regions-original.geo.json"
   (-> (add-population-to-territories region-covid-data region-population-data :region-name)
       (compute-cases-per-100k)
-      (conform-to-territory-name :region-name)))
+      (conform-to-territory-name :region-name)
+      (dissoc "P.A. Bolzano" "P.A. Trento")))
 
 (def province-data
   "For use with resources/public/public/data/limits_IT_provinces-original.geo.json"

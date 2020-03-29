@@ -86,6 +86,15 @@
 ;;;;;;;;;;;;;
 ;; COVID data
 
+
+(def province-covid-data-march-8
+  (->> (mcsv/read-csv "resources/Italia-COVID-19/dati-province/dpc-covid19-ita-province-20200308.csv"
+                      {:field-names-fn fields-it->en})
+       (map #(update % :province-name (fn [territory-name]
+                                        (if-let [update-territory-name (normalize-province-names territory-name)]
+                                          update-territory-name
+                                          territory-name))))))
+
 ;; Now we can just read the CSV.
 (def province-covid-data
   (->> (mcsv/read-csv "resources/Italia-COVID-19/dati-province/dpc-covid19-ita-province-latest.csv"
@@ -134,6 +143,13 @@
       (conform-to-territory-name :region-name)
       (dissoc "P.A. Bolzano" "P.A. Trento")))
 
+(def province-data-march-8
+  "For use with resources/public/public/data/limits_IT_provinces-original.geo.json"
+  (-> (remove (comp #{"In fase di definizione/aggiornamento"} :province-name) province-covid-data-march-8)
+      (add-population-to-territories province-population-data :province-name)
+      (compute-cases-per-100k)
+      (conform-to-territory-name :province-name)))
+
 (def province-data
   "For use with resources/public/public/data/limits_IT_provinces-original.geo.json"
   (-> (remove (comp #{"In fase di definizione/aggiornamento"} :province-name) province-covid-data)
@@ -160,7 +176,7 @@
   {:width 550 :height 700})
 
 ;; Regionally, we can see the north is affected strongly
-(oz/view!
+(def italy-region-map
  (merge-with merge oz-config italy-dimensions
              {:title {:text "COVID19 cases in Italy, by province, per 100k inhabitants"}
               :data {:name "italy"
@@ -174,8 +190,9 @@
                                    {:field "Cases" :type "quantitative"}]}
               :selection {:highlight {:on "mouseover" :type "single"}}}))
 
+
 ;; Looking province-by-province, we can see how geographically concentrated the crisis is:
-(oz/view!
+(def italy-province-map
  (merge-with merge oz-config italy-dimensions
              {:title {:text "COVID19 cases in Italy, by province, per 100k inhabitants"}
               :data {:name "italy"
@@ -197,3 +214,38 @@
                          :tooltip [{:field "prov_name" :type "nominal"}
                                    {:field "Cases-per-100k" :type "quantitative"}]}
               :selection {:highlight {:on "mouseover" :type "single"}}}))
+
+;;;;
+
+(def italy-province-map-march-8
+ (merge-with merge oz-config italy-dimensions
+             {:title {:text "COVID19 cases in Italy, by province, per 100k inhabitants"}
+              :data {:name "italy"
+                     :values (update (json/read-value (java.io.File. "resources/public/public/data/limits_IT_provinces-original.geo.json")
+                                                      (json/object-mapper {:decode-key-fn true}))
+                                     :features
+                                     (fn [features]
+                                       (mapv (fn [feature]
+                                               (assoc feature
+                                                      :prov_name     (:prov_name (:properties feature))
+                                                      :Cases          (get-in province-data-march-8 [(:prov_name (:properties feature)) :cases] 0)
+                                                      :Cases-per-100k (get-in province-data-march-8 [(:prov_name (:properties feature)) :cases-per-100k] 0)))
+                                             features)))
+                     :format {:property "features"}}
+              :mark {:type "geoshape" :stroke "white" :strokeWidth 1}
+              :encoding {:color {:field "Cases-per-100k"
+                                 :type "quantitative"
+                                 :scale {:domain [0 (apply max (map :cases-per-100k (vals province-data-march-8)))]}}
+                         :tooltip [{:field "prov_name" :type "nominal"}
+                                   {:field "Cases-per-100k" :type "quantitative"}]}
+              :selection {:highlight {:on "mouseover" :type "single"}}}))
+
+(def dashboard
+  [:div
+   [:h1 "COVID19"]
+   [:p "March 8th vs. Now"]
+   [:div {:style {:display "flex" :flex-direction "row"}}
+    [:vega-lite italy-province-map-march-8]
+    [:vega-lite italy-province-map]]])
+
+(oz/view! dashboard)

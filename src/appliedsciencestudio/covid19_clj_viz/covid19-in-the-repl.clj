@@ -25,6 +25,7 @@
 
   )
 
+(oz/start-server! 8082)
 
 ;;;; ===========================================================================
 ;;;; Minimum viable geographic visualization
@@ -124,11 +125,11 @@
              {:title {:text "COVID19 cases in Germany, by state, per 100k inhabitants"}
               :data {:name "germany"
                      ;; FIXME this keeps getting cached somewhere in Firefox or Oz
-                     ;; :url "/public/data/deutschland-bundeslaender.geo.json",
+                     ;; :url "/public/data/deutschland-bundeslaender.geo.json"
                      :values deutschland-geojson-with-data
-                     :format {:property "features"}},
+                     :format {:property "features"}}
               :mark {:type "geoshape" :stroke "white" :strokeWidth 1}
-              :encoding {:color {:field "Cases-per-100k",
+              :encoding {:color {:field "Cases-per-100k"
                                  :type "quantitative"
                                  :scale {:domain [0
                                                   ;; NB: compare Hubei's 111 to the German maximum. It was 0.5 when I started this project. Evaluate the next expression to see its current value.
@@ -147,11 +148,11 @@
              {:title {:text "COVID19 cases in Germany (*not* population-scaled)"}
               :data {:name "germany"
                      ;; FIXME this keeps getting cached somewhere in Firefox or Oz
-                     ;; :url "/public/data/deutschland-bundeslaender.geo.json",
+                     ;; :url "/public/data/deutschland-bundeslaender.geo.json"
                      :values deutschland-geojson-with-data
-                     :format {:property "features"}},
+                     :format {:property "features"}}
               :mark {:type "geoshape"  :stroke "white" :strokeWidth 1}
-              :encoding {:color {:field "Cases",
+              :encoding {:color {:field "Cases"
                                  :type "quantitative"
                                  :scale { ;; from https://www.esri.com/arcgis-blog/products/product/mapping/mapping-coronavirus-responsibly/
                                          :range ["#fde5d9" "#a41e23"]}}
@@ -192,7 +193,7 @@
                                                date :cases
                                                :country-region :country}))
                          ;; ;; FIXME this is the line to toggle:
-                         (remove (comp #{"Hubei"} :province-state))))},
+                         (remove (comp #{"Hubei"} :province-state))))}
    :mark "bar"
    :encoding {:x {:field "cases", :type "quantitative"}
               :y {:field "province-state", :type "ordinal"
@@ -216,9 +217,9 @@
  (merge-with merge oz-config china-dimensions
              {:data {:name "map"
                      :url "/public/data/china-provinces.geo.json"
-                     :format {:property "features"}},
+                     :format {:property "features"}}
               :mark {:type "geoshape" :stroke "white" :strokeWidth 1}
-              :encoding {:color {:field "cases-per-100k",
+              :encoding {:color {:field "cases-per-100k"
                                  :type "quantitative"}
                          :tooltip [{:field "province" :type "nominal"}
                                    {:field "cases" :type "quantitative"}]}}))
@@ -236,10 +237,10 @@
  (merge-with merge oz-config china-dimensions
              {:title {:text "COVID19 cases in China"}
               :data {:name "map"
-                     :url "/public/data/china-provinces.geo.json",
-                     :format {:property "features"}},
+                     :url "/public/data/china-provinces.geo.json"
+                     :format {:property "features"}}
               :mark {:type "geoshape" :stroke "white" :strokeWidth 1}
-              :encoding {:color {:field "cases-binned",
+              :encoding {:color {:field "cases-binned"
                                  :bin true ;; <-- we pre-processed the
                                            ;; data into bins, so here
                                            ;; we merely notify Vega.
@@ -265,10 +266,10 @@
  (merge-with merge oz-config china-dimensions
              {:title {:text "COVID19 cases in China per 100k inhabitants, log-scaled"}
               :data {:name "map"
-                     :url "/public/data/china-provinces.geo.json",
-                     :format {:property "features"}},
+                     :url "/public/data/china-provinces.geo.json"
+                     :format {:property "features"}}
               :mark {:type "geoshape" :stroke "white" :strokeWidth 1}
-              :encoding {:color {:field "cases-per-100k",
+              :encoding {:color {:field "cases-per-100k"
                                  :scale {:type "log"}
                                  :type "quantitative"}
                          :tooltip [{:field "province" :type "nominal"}
